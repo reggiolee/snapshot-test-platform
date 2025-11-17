@@ -1,0 +1,146 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model TaskGroup {
+  id               String   @id @default(cuid())
+  name             String
+  description      String?
+  defaultThreshold Float    @default(0.1) @map("default_threshold")
+  defaultConfig    String   @default("{}") @map("default_config")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  
+  urls        Url[]
+  executions  Execution[]
+  schedules   Schedule[]
+  
+  @@map("task_groups")
+}
+
+model Url {
+  id             String   @id @default(cuid())
+  taskGroupId    String   @map("task_group_id")
+  url            String
+  name           String
+  preScript      String?  @map("pre_script")
+  threshold      Float?   @map("threshold")
+  viewportConfig String   @default("{\"width\": 1920, \"height\": 1080}") @map("viewport_config")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  
+  taskGroup    TaskGroup     @relation(fields: [taskGroupId], references: [id], onDelete: Cascade)
+  results      Result[]
+  screenshots  Screenshot[]
+  
+  @@map("urls")
+}
+
+model Schedule {
+  id             String    @id @default(cuid())
+  taskGroupId    String    @map("task_group_id")
+  enabled        Boolean   @default(true)
+  cronExpression String    @map("cron_expression")
+  timezone       String    @default("Asia/Shanghai")
+  retryCount     Int       @default(3) @map("retry_count")
+  lastExecution  DateTime? @map("last_execution")
+  nextExecution  DateTime? @map("next_execution")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  
+  taskGroup          TaskGroup           @relation(fields: [taskGroupId], references: [id], onDelete: Cascade)
+  scheduleExecutions ScheduleExecution[]
+  
+  @@map("schedules")
+}
+
+model ScheduleExecution {
+  id          String    @id @default(cuid())
+  scheduleId  String    @map("schedule_id")
+  executionId String?   @map("execution_id")
+  triggerType String    @default("scheduled") @map("trigger_type")
+  success     Boolean   @default(false)
+  errorMessage String?  @map("error_message")
+  startedAt   DateTime  @default(now()) @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  
+  schedule  Schedule   @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  execution Execution? @relation(fields: [executionId], references: [id], onDelete: SetNull)
+  
+  @@map("schedule_executions")
+}
+
+model Execution {
+  id          String    @id @default(cuid())
+  taskGroupId String    @map("task_group_id")
+  status      String    @default("pending") @map("status")
+  startedAt   DateTime  @default(now()) @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  summary     String    @default("{}") @map("summary")
+  
+  taskGroup          TaskGroup           @relation(fields: [taskGroupId], references: [id], onDelete: Cascade)
+  results            Result[]
+  scheduleExecutions ScheduleExecution[]
+  
+  @@map("executions")
+}
+
+model Result {
+  id                      String    @id @default(cuid())
+  executionId             String    @map("execution_id")
+  urlId                   String    @map("url_id")
+  status                  String    @default("pending") @map("status")
+  similarity              Float?    @map("similarity")
+  diffPixels              Int?      @map("diff_pixels")
+  thresholdUsed           Float?    @map("threshold_used")
+  thresholdSource         String?   @map("threshold_source")
+  baselineScreenshotUrl   String?   @map("baseline_screenshot_url")
+  currentScreenshotUrl    String?   @map("current_screenshot_url")
+  diffImageUrl            String?   @map("diff_image_url")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  
+  execution Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  url       Url       @relation(fields: [urlId], references: [id], onDelete: Cascade)
+  
+  @@map("results")
+}
+
+model Screenshot {
+  id         String   @id @default(cuid())
+  urlId      String   @map("url_id")
+  fileUrl    String   @map("file_url")
+  filePath   String   @map("file_path")
+  isBaseline Boolean  @default(false) @map("is_baseline")
+  metadata   String   @default("{}") @map("metadata")
+  createdAt  DateTime @default(now()) @map("created_at")
+  
+  url Url @relation(fields: [urlId], references: [id], onDelete: Cascade)
+  
+  @@map("screenshots")
+}
+
+model NotificationSettings {
+  id              String   @id @default(cuid())
+  enabled         Boolean  @default(false)
+  emailHost       String?  @map("email_host")
+  emailPort       Int      @default(587) @map("email_port")
+  emailUser       String?  @map("email_user")
+  emailPassword   String?  @map("email_password")
+  emailFrom       String?  @map("email_from")
+  emailTo         String?  @map("email_to")
+  webhookUrl      String?  @map("webhook_url")
+  notifyOnFailure Boolean  @default(true) @map("notify_on_failure")
+  notifyOnSuccess Boolean  @default(false) @map("notify_on_success")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  
+  @@map("notification_settings")
+}
